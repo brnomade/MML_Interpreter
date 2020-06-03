@@ -1,5 +1,6 @@
 import winsound
 import time
+import ctypes
 import ply.lex as lex
 
 
@@ -210,7 +211,6 @@ class MSXMMLLexer:
         return self.lexer.token()
 
 
-
 class MSXMMLParser:
 
     def __init__(self):
@@ -219,7 +219,7 @@ class MSXMMLParser:
     def compile(self, input_string):
         self._lexer.set_input(input_string)
         su = SoundUtils()
-        sp = SynchronousPlayer()
+        sp = SynchronousPSGPlayer()
         duration = 200
         while True:
             mml_token = self._lexer.get_token()
@@ -228,7 +228,7 @@ class MSXMMLParser:
             if mml_token.type == "NOTE_ALFA":
                 f = su.compute_frequency_for_note(mml_token.value["operator"], mml_token.value["accent"])
                 extra_duration = mml_token.value["dots"] * round(duration / 2)
-                sp.play(f, duration + extra_duration)
+                sp.play(1, f, (duration + extra_duration)/1000)
             elif mml_token.type == "OCTAVE":
                 su.octave = mml_token.value["argument"]
             elif mml_token.type == "LENGTH" and mml_token.value["argument"] is not None:
@@ -268,6 +268,21 @@ class SynchronousPlayer:
             winsound.Beep(frequency, delay)
 
 
+class SynchronousPSGPlayer:
+    # psg dll from
+    # https: // www.posemotion.com / macrotune /
+    # channel 1 waveforms -  Triangle, Sawtooth, Complex A, Complex B, Square and Noise.
+    # channels 2 through 4 - Triangle, Sawtooth, Complex A, Complex B, Square
+    def __init__(self):
+        self.dll = ctypes.cdll.LoadLibrary("E:\\CODING\\PC\\psg_dylib_and_dll\\psg_win_x86.dll")
+
+    def play(self, channel, frequency, delay=200):
+        # void PSG_Sound(unsigned int Channel, float Frequency, unsigned int Volume, unsigned int Waveform);
+        self.dll.PSG_Sound(ctypes.c_int(channel), ctypes.c_float(frequency), ctypes.c_int(32), ctypes.c_int(3))
+        time.sleep(delay)
+        # self.dll.PSG_Sound(ctypes.c_int(channel), ctypes.c_float(frequency), ctypes.c_int(0), ctypes.c_int(1))
+
+
 def main():
     print("start")
     sp = SynchronousPlayer()
@@ -282,8 +297,8 @@ def main():
             # sp.play(f)
     # msx_lex = MSXMMLLexer()
     msx_par = MSXMMLParser()
-    #msx_par.compile(vampire_killer())
-    msx_par.compile(bitmus())
+    msx_par.compile(vampire_killer())
+    #msx_par.compile(bitmus())
     print("end")
 
 
